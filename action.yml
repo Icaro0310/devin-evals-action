@@ -1,0 +1,87 @@
+name: devin-evals corpus gate
+description: >-
+  Regression-gate a golden eval corpus with devin-evals: replays every
+  case and fails when a case's actual verdict diverges from its
+  expected_status (a MISMATCH), naming each regressed defect. Documented
+  known_gaps are tolerated unless strict. Read-only: replays records,
+  never modifies them. Part of the devin-* ecosystem.
+author: Icaro0310
+branding:
+  icon: check-circle
+  color: purple
+inputs:
+  corpus:
+    description: "Corpus directory produced by 'devin-evals corpus generate' (corpus.json + sessions.db + evals/)"
+    required: true
+  strict:
+    description: "Also fail on documented known_gaps, not just mismatches"
+    required: false
+    default: "false"
+  version:
+    description: "pip specifier for the devin-evals package"
+    required: false
+    default: "devin-evals>=0.2,<0.3"
+outputs:
+  ok:
+    description: "'true' when every expectation matched (gaps tolerated)"
+    value: ${{ steps.gate.outputs.ok }}
+  matched:
+    description: Number of cases whose actual verdict matched expected
+    value: ${{ steps.gate.outputs.matched }}
+  mismatched:
+    description: Number of MISMATCH regressions
+    value: ${{ steps.gate.outputs.mismatched }}
+  gaps:
+    description: Number of tolerated known_gap cases
+    value: ${{ steps.gate.outputs.gaps }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: "3.12"
+    - name: Install devin-evals
+      shell: bash
+      run: pip install "${{ inputs.version }}"
+    - name: Verify corpus
+      id: gate
+      shell: bash
+      env:
+        CORPUS: ${{ inputs.corpus }}
+        STRICT: ${{ inputs.strict }}
+      run: |
+        if [ ! -f "$CORPUS/corpus.json" ]; then
+          echo "::error::corpus unreadable — '$CORPUS/corpus.json' not found (precondition: point 'corpus' at a dir produced by 'devin-evals corpus generate'). This is not a regression."
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+        args=(corpus verify --corpus "$CORPUS" --out .evals-verify-out)
+        [ "$STRICT" = "true" ] && args+=(--strict)
+        set +e
+        devin-evals "${args[@]}"
+        rc=$?
+        set -e
+        if [ "$rc" -gt 1 ] || [ ! -f .evals-verify-out/verify-report.json ]; then
+          echo "::error::devin-evals could not verify the corpus (exit $rc) — precondition/tooling failure, not a regression"
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          exit 2
+        fi
+        python3 - <<'PY'
+        import json, sys
+        r = json.load(open(".evals-verify-out/verify-report.json"))
+        s = r["summary"]
+        out = open(__import__("os").environ["GITHUB_OUTPUT"], "a")
+        out.write(f"ok={'true' if s['ok'] else 'false'}\n")
+        out.write(f"matched={s['matched']}\nmismatched={s['mismatched']}\ngaps={s['gaps']}\n")
+        for c in r["cases"]:
+            if c["result"] == "mismatch":
+                print(f"::error::MISMATCH {c['id']} (defect {c.get('defect') or 'n/a'}): expected={c['expected_status']} actual={c['actual_status']}")
+            elif c["result"] == "gap":
+                print(f"::warning::GAP {c['id']}: {c.get('known_gap') or 'documented grader gap'}")
+        if s["mismatched"]:
+            print(f"::error::corpus regression — {s['mismatched']} case(s) diverged from expected_status; see MISMATCH lines above")
+        elif not s["ok"]:
+            print(f"::error::corpus verify failed under --strict on {s['gaps']} documented gap(s)")
+        PY
+        [ "$rc" -ne 0 ] && exit 1
+        echo "::notice::corpus: ${matched:-?} matched — no regressions"
