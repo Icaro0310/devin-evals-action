@@ -24,7 +24,7 @@ not just "evals failed". Documented `known_gap`s are tolerated unless
   with:
     corpus: tests/corpus
     strict: "true"                    # also fail on known_gaps
-    version: "devin-evals==0.2.0"
+    version: "devin-evals==0.3.0"
 ```
 
 ## The two distinct failures

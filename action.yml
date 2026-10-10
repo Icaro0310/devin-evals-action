@@ -20,7 +20,7 @@ inputs:
   version:
     description: "pip specifier for the devin-evals package"
     required: false
-    default: "devin-evals>=0.2,<0.3"
+    default: "devin-evals>=0.3,<0.4"
 outputs:
   ok:
     description: "'true' when every expectation matched (gaps tolerated)"
