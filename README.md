@@ -34,6 +34,11 @@ not just "evals failed". Documented `known_gap`s are tolerated unless
 | `corpus.json` unreadable/missing | precondition error | corpus not generated / wrong path — not a regression |
 | cases diverge from `expected_status` | `MISMATCH <id> expected=X actual=Y` | a real grader regression, named per defect |
 
+## Platform support
+
+Runs on any GitHub-hosted runner — the corpus replay is offline and
+deterministic; Python 3.12 comes from `actions/setup-python`.
+
 ## Notes
 
 - Cheap enough for PR triggers: the golden corpus replays in ~1 s
