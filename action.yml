@@ -84,4 +84,4 @@ runs:
             print(f"::error::corpus verify failed under --strict on {s['gaps']} documented gap(s)")
         PY
         [ "$rc" -ne 0 ] && exit 1
-        echo "::notice::corpus: ${matched:-?} matched — no regressions"
+        echo "::notice::corpus verify clean — every expectation matched, no regressions"
